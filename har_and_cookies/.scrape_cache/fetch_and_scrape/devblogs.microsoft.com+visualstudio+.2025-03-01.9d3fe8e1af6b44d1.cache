@@ -1,0 +1,18 @@
+Dev Blogs Visual Studio Blog
+We’re excited to introduce a central place for all things Visual Studio
+Visual Studio Blog
+The official source of product insight from the Visual Studio Engineering Team
+Featured posts
+Announcing a free GitHub Copilot for Visual Studio
+We're excited to announce an all new free plan for GitHub Copilot, available for everyone today in Visual Studio. All you need is a GitHub account. No trial. No...
+Latest posts
+Catch issues before you commit to Git
+Discovering issues with code changes after committing changes can be frustrating. Fortunately, Visual Studio offers a new feature that helps you catch potential problems early, improving your code quality.
+Visual Studio now includes a feature powered by GitHub Copilot that lets you review your local code changes before committing them, before they are part of your pull request. This can help identify performance and security issues early, ensuring you maintain a higher quality codebase.
+How to Get Started
+To use this feature, ensure your GitHub Copilot subscription is active and enabled within Visual Stu...
+Claude 3.7 Now Available in GitHub Copilot for Visual Studio
+The world of AI is evolving at a breathtaking pace, and today brings an exciting milestone for developers and tech enthusiasts alike. Anthropic’s newest release, Claude 3.7, is now available directly within GitHub Copilot for Visual Studio 2022 17.13, heralding a new era of seamlessly integrated, advanced AI coding assistance. This new Sonnet model supports the non-thinking modes in Copilot.
+How to Access Claude 3.7
+![facebook](https://devblogs.microsoft.com/visualstudio/wp-content/themes/devblogs-evo/images/social-icons/facebook.svg)
+![linkedin](https://devblogs.microsoft.com/visualstudio/wp-content/themes/devblogs-evo/images/social-icons/linkedin.svg)
