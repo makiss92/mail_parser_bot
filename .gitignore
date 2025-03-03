@@ -4,3 +4,4 @@ config.json
 # Игнорировать виртуальное окружение
 venv/
 .env
+har_and_cookies/
