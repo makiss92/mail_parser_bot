@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  mail-bot:
+    build: .
+    container_name: mail-bot
+    volumes:
+      - .:/app
+    env_file:
+      - .env  # Указываем файл с переменными окружения
