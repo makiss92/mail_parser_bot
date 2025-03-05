@@ -2,6 +2,7 @@ import time
 import imaplib
 import email
 import json
+import os
 import logging
 import requests
 from g4f.client import Client
@@ -44,7 +45,7 @@ def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
     for e_id in email_ids:
         e_id_decoded = e_id.decode()
         if e_id_decoded in processed_emails:
-            logging.info(f"Email {e_id_decoded} already processed. Skipping.")
+            #logging.info(f"Email {e_id_decoded} already processed. Skipping.")
             continue
 
         try:
@@ -138,19 +139,22 @@ def escape_markdown(text):
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
+import os
+
 def load_config():
     """
-    Загружает конфиденциальные данные из локального файла config.json.
+    Загружает конфиденциальные данные из переменных окружения.
     """
-    try:
-        with open("config.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        logging.error("Файл config.json не найден.")
-        raise
-    except json.JSONDecodeError:
-        logging.error("Ошибка в формате config.json.")
-        raise
+    config = {
+        "imap_server": os.getenv("IMAP_SERVER"),
+        "email_username": os.getenv("EMAIL_USERNAME"),
+        "email_password": os.getenv("EMAIL_PASSWORD"),
+        "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
+        "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
+    }
+    if None in config.values():
+        raise ValueError("Не все переменные окружения заданы.")
+    return config
 
 # Основная функция
 def main():
