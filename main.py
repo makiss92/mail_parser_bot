@@ -3,6 +3,7 @@ import imaplib
 import email
 import json
 import os
+import re
 import logging
 import requests
 from email.header import decode_header
@@ -138,23 +139,38 @@ def split_message(message, max_length=4096):
         message = message[max_length:]
     return parts
 
+def clean_html(text):
+    """
+    Удаляет неподдерживаемые HTML-теги из текста.
+
+    :param text: Исходный текст.
+    :return: Очищенный текст.
+    """
+    # Удаляем все теги, кроме поддерживаемых Telegram
+    supported_tags = ["b", "i", "u", "s", "code", "pre", "a"]
+    pattern = re.compile(r"<(?!\/?(" + "|".join(supported_tags) + r")\b)[^>]+>")
+    return pattern.sub("", text)
+
 def send_to_telegram(bot_token, chat_id, subject, message):
     """
-    Отправляет сообщение в Telegram с MarkdownV2-форматированием.
+    Отправляет сообщение в Telegram с HTML-форматированием и эмодзи.
     Если сообщение слишком длинное, разделяет его на части.
-    
+
     :param bot_token: Токен вашего Telegram-бота.
     :param chat_id: ID чата.
     :param subject: Тема письма.
     :param message: Сообщение для отправки.
     """
     try:
-        # Экранируем специальные символы для MarkdownV2
-        subject = escape_markdown(subject)
-        message = escape_markdown(message)
+        # Очищаем текст от неподдерживаемых HTML-тегов
+        cleaned_message = clean_html(message)
 
-        # Форматируем сообщение
-        formatted_message = f"**Тема:** {subject}\n\n{message}"
+        # Форматируем сообщение с использованием поддерживаемых HTML-тегов и эмодзи
+        formatted_message = (
+            f"🔔 <b>Тема:</b> {subject}\n\n"
+            f"📝 <b>Рекомендации:</b>\n"
+            f"<i>{cleaned_message}</i>"
+        )
 
         # Разделяем сообщение на части, если оно слишком длинное
         message_parts = split_message(formatted_message)
@@ -165,7 +181,7 @@ def send_to_telegram(bot_token, chat_id, subject, message):
             payload = {
                 "chat_id": chat_id,
                 "text": part,
-                "parse_mode": "MarkdownV2"  # Включаем MarkdownV2-форматирование
+                "parse_mode": "HTML"  # Включаем HTML-форматирование
             }
             response = requests.post(url, json=payload)
             logging.info(f"Message part sent to Telegram: {response.json()}")
