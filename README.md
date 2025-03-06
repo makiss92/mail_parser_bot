@@ -10,8 +10,7 @@
 
 ## Чтобы развернуть проект, Вам необходимо:
 
-1. Убедиться, что **Docker** и **Docker Compose** установлены.  
-   Вы можете найти инструкции по установке Docker [здесь](https://docs.docker.com/engine/install/).
+1. Убедиться, что **Docker** и **Docker Compose** установлены ([Инструкция](https://docs.docker.com/engine/install/)).  
 
 2. Скопировать папку проекта (или клонируйте репозиторий с помощью [Git](https://github.com/makiss92/mail_parser_bot.git)).
 
