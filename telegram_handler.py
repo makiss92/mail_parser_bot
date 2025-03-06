@@ -1,4 +1,3 @@
-# telegram_handler.py
 import aiohttp
 import logging
 
@@ -9,6 +8,7 @@ class TelegramHandler:
 
     async def send_message(self, subject, message):
         try:
+            logging.info(f"Попытка отправить сообщение на адрес chat_id: {self.chat_id}")
             subject = self.escape_markdown(subject)
             message = self.escape_markdown(message)
             formatted_message = f"**Тема:** {subject}\n\n{message}"
@@ -26,13 +26,14 @@ class TelegramHandler:
                     async with session.post(url, json=payload) as response:
                         response_data = await response.json()
                         if response_data.get("ok"):
-                            logging.info(f"Message part sent to Telegram: {response_data}")
+                            logging.info(f"Часть сообщения успешно отправлена.")
                         else:
-                            logging.error(f"Failed to send message part: {response_data}")
+                            logging.error(f"Не удалось отправить часть сообщения.")
+                            logging.error(f"Ответ от API: {response_data}")
 
             return True
         except Exception as e:
-            logging.error(f"Error sending message to Telegram: {str(e)}")
+            logging.error(f"Ошибка при отправке сообщения в Telegram: {str(e)}")
             return False
 
     def split_message(self, message, max_length=4096):
@@ -43,6 +44,7 @@ class TelegramHandler:
             part = message[:max_length]
             parts.append(part)
             message = message[max_length:]
+        logging.info(f"Сообщение разделено на {len(parts)} части.")
         return parts
 
     def escape_markdown(self, text):
@@ -56,4 +58,5 @@ class TelegramHandler:
         if escaped_text.count("```") % 2 != 0:
             escaped_text = escaped_text.replace("```", "`")
 
+        #logging.info(f"Экранированный текст: {escaped_text}")
         return escaped_text

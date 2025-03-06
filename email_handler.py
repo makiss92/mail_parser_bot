@@ -1,4 +1,3 @@
-# email_handler.py
 import imaplib
 import email
 from email.header import decode_header
@@ -37,10 +36,10 @@ class EmailHandler:
         status, messages = self.mail.search(None, 'UNSEEN')
         if status == 'OK' and messages[0]:
             email_ids = messages[0].split()
-            logging.info(f"Found {len(email_ids)} unread emails.")
+            logging.info(f"Найдено {len(email_ids)} новое письмо.")
         else:
             email_ids = []
-            logging.info("No unread emails found.")
+            logging.info("Новых писем не найдено.")
 
         emails = []
         for e_id in email_ids:
@@ -55,11 +54,11 @@ class EmailHandler:
                             subject = self.decode_mime_header(subject)
                         else:
                             subject = "Без темы"
-                        logging.info(f"Processing email with ID: {e_id_decoded}, Subject: {subject}")
+                        #logging.info(f"Processing email with ID: {e_id_decoded}, Subject: {subject}")
 
                         text = self.extract_text(msg)
                         emails.append((e_id_decoded, subject, text))
             except Exception as e:
-                logging.error(f"Error processing email {e_id_decoded}: {str(e)}")
+                logging.error(f"Ошибка при обработке почты {e_id_decoded}: {str(e)}")
 
         return emails

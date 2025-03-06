@@ -2,6 +2,7 @@
 config.json
 .env
 __pycache__
+processed_emails.json
 
 # Игнорировать виртуальное окружение
 venv/

@@ -1,4 +1,3 @@
-# gpt4_analyzer.py
 import logging
 import asyncio
 from g4f.client import Client
@@ -18,8 +17,8 @@ class GPT4Analyzer:
                 ]
             )
             result = response.choices[0].message.content
-            logging.info(f"GPT-4 analysis successful: {result}")
+            #logging.info(f"GPT-4 analysis successful: {result}")
             return result
         except Exception as e:
-            logging.error(f"Error analyzing text with GPT-4: {str(e)}")
+            logging.error(f"Ошибка при анализе текста с помощью GPT-4: {str(e)}")
             return "Не удалось получить анализ от GPT-4."

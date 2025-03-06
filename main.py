@@ -1,4 +1,3 @@
-# main.py
 import asyncio
 import json
 import logging
@@ -23,14 +22,14 @@ async def save_processed_email(email_id):
         json.dump(list(processed), f)
 
 async def main():
-    logging.info("Starting the script...")
+    logging.info("Запускаем скрипт...")
     config = load_config()
 
     email_handler = EmailHandler(config["IMAP_SERVER"], config["EMAIL_USERNAME"], config["EMAIL_PASSWORD"])
     telegram_handler = TelegramHandler(config["TELEGRAM_BOT_TOKEN"], config["TELEGRAM_CHAT_ID"])
     gpt4_analyzer = GPT4Analyzer()
 
-    prompt = "Проанализируй текст письма, напиши рекомендации!"
+    prompt = "Проанализируй текст письма, напиши рекомендации на Русском языке!"
 
     while True:
         try:
@@ -39,17 +38,17 @@ async def main():
 
             for e_id, subject, text in emails:
                 if e_id in processed_emails:
-                    logging.info(f"Email {e_id} already processed. Skipping.")
+                    logging.info(f"Это письмо под №:{e_id} уже обработано. Пропускаем.")
                     continue
 
                 analysis_result = await gpt4_analyzer.analyze_text(text, prompt)
                 await telegram_handler.send_message(subject, analysis_result)
                 await save_processed_email(e_id)
-                logging.info(f"Email {e_id} processed and sent to Telegram.")
+                logging.info(f"Номер письма №:{e_id} обработан и отправлен в Telegram.")
 
             await asyncio.sleep(10)
         except Exception as e:
-            logging.error(f"Critical error: {str(e)}")
+            logging.error(f"Критическая ошибка: {str(e)}")
             await asyncio.sleep(60)
 
 if __name__ == "__main__":

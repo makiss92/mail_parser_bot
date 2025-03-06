@@ -1,4 +1,3 @@
-# config.py
 import os
 import logging
 from dotenv import load_dotenv
@@ -7,6 +6,9 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 def load_config():
+    """
+    Загружает переменные окружения и возвращает их в виде словаря.
+    """
     load_dotenv()
     config = {
         "IMAP_SERVER": os.getenv("IMAP_SERVER"),
@@ -16,13 +18,15 @@ def load_config():
         "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     }
 
-    for key, value in config.items():
-        if value is None:
-            logging.error(f"Переменная окружения {key} не найдена!")
-        else:
-            logging.info(f"Переменная окружения {key} загружена.")
+    # Считаем количество загруженных переменных
+    loaded_count = sum(1 for value in config.values() if value is not None)
+    total_count = len(config)
 
-    if None in config.values():
+    if loaded_count == total_count:
+        logging.info(f"Загружены все {loaded_count} переменных окружения.")
+    else:
+        missing_vars = [key for key, value in config.items() if value is None]
+        logging.error(f"Переменные окружения не найдены: {', '.join(missing_vars)}")
         raise ValueError("Не все переменные окружения заданы.")
 
     return config
