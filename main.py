@@ -140,7 +140,7 @@ def split_message(message, max_length=4096):
 
 def send_to_telegram(bot_token, chat_id, subject, message):
     """
-    Отправляет сообщение в Telegram с HTML-форматированием и эмодзи.
+    Отправляет сообщение в Telegram с MarkdownV2-форматированием.
     Если сообщение слишком длинное, разделяет его на части.
     
     :param bot_token: Токен вашего Telegram-бота.
@@ -149,12 +149,12 @@ def send_to_telegram(bot_token, chat_id, subject, message):
     :param message: Сообщение для отправки.
     """
     try:
-        # Форматируем сообщение с использованием поддерживаемых HTML-тегов и эмодзи
-        formatted_message = (
-            f"🔔 <b>Тема:</b> {subject}\n\n"
-            f"📝 <b>Рекомендации:</b>\n"
-            f"<i>{message}</i>"
-        )
+        # Экранируем специальные символы для MarkdownV2
+        subject = escape_markdown(subject)
+        message = escape_markdown(message)
+
+        # Форматируем сообщение
+        formatted_message = f"**Тема:** {subject}\n\n{message}"
 
         # Разделяем сообщение на части, если оно слишком длинное
         message_parts = split_message(formatted_message)
@@ -165,7 +165,7 @@ def send_to_telegram(bot_token, chat_id, subject, message):
             payload = {
                 "chat_id": chat_id,
                 "text": part,
-                "parse_mode": "HTML"  # Включаем HTML-форматирование
+                "parse_mode": "MarkdownV2"  # Включаем MarkdownV2-форматирование
             }
             response = requests.post(url, json=payload)
             logging.info(f"Message part sent to Telegram: {response.json()}")
