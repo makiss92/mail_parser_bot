@@ -11,8 +11,6 @@
     EMAIL_PASSWORD=
     TELEGRAM_BOT_TOKEN=
     TELEGRAM_CHAT_ID=
-   
-
 5. Запустите контейнер:
    ```bash
    docker-compose up --build
