@@ -6,30 +6,32 @@
 2. Скопируйте папку проекта (или клонируйте репозиторий с помощью Git).
 
 3. Создайте файл `.env` и заполните его конфиденциальными данными:
-    ```ini
-    IMAP_SERVER=
-    EMAIL_USERNAME=
-    EMAIL_PASSWORD=
-    TELEGRAM_BOT_TOKEN=
-    TELEGRAM_CHAT_ID=
-    ```
+```ini
+IMAP_SERVER=
+EMAIL_USERNAME=
+EMAIL_PASSWORD=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
 
 4. Запустите контейнер:
-   ```bash
-   docker-compose up --build
-   ```
+```bash
+docker-compose up --build
+```
 5. Дополнительные улучшения(не обязательно):
 
 Если вы хотите сохранять логи в файл, добавьте монтирование `volume` для логов:
 
 ```yaml
 volumes:
-  - .:/app
-  - ./logs:/app/logs  # Монтируем папку для логов
+   - .:/app
+   - ./logs:/app/logs  # Монтируем папку для логов
 ```
 
 И обновите код для записи логов в файл:
-```import logging
+
+```python
+import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +42,7 @@ logging.basicConfig(
     ]
 )
 ```
+
 # Итог
 Теперь ваш проект упакован в Docker и готов к развёртыванию `"одной командой"`. 
 Вы можете легко переносить его на другие компьютеры и запускать без необходимости установки зависимостей вручную.
