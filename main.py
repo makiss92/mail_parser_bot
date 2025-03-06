@@ -5,6 +5,7 @@ import json
 import os
 import logging
 import requests
+from email.header import decode_header
 from g4f.client import Client
 
 # Настройка логов
@@ -26,6 +27,22 @@ def save_processed_email(email_id):
     with open(CONFIG_FILE, "w") as f:
         json.dump(list(processed), f)
 
+def decode_mime_header(header):
+    """
+    Декодирует MIME-заголовок (например, тему письма).
+
+    :param header: Заголовок письма.
+    :return: Декодированная строка.
+    """
+    decoded_parts = decode_header(header)
+    decoded_str = ""
+    for part, encoding in decoded_parts:
+        if isinstance(part, bytes):
+            decoded_str += part.decode(encoding or "utf-8", errors="replace")
+        else:
+            decoded_str += part
+    return decoded_str
+
 def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
     processed_emails = load_processed_emails()
     mail = imaplib.IMAP4_SSL(imap_server)
@@ -45,7 +62,7 @@ def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
     for e_id in email_ids:
         e_id_decoded = e_id.decode()
         if e_id_decoded in processed_emails:
-            #logging.info(f"Email {e_id_decoded} already processed. Skipping.")
+            logging.info(f"Email {e_id_decoded} already processed. Skipping.")
             continue
 
         try:
@@ -54,6 +71,10 @@ def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
                     subject = msg["Subject"]
+                    if subject:
+                        subject = decode_mime_header(subject)  # Декодируем тему письма
+                    else:
+                        subject = "Без темы"
                     logging.info(f"Processing email with ID: {e_id_decoded}, Subject: {subject}")
 
                     # Извлекаем текст письма
@@ -61,12 +82,12 @@ def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
                     if msg.is_multipart():
                         for part in msg.walk():
                             if part.get_content_type() == "text/plain":
-                                text += part.get_payload(decode=True).decode()
+                                text += part.get_payload(decode=True).decode("utf-8", errors="replace")
                     else:
-                        text = msg.get_payload(decode=True).decode()
+                        text = msg.get_payload(decode=True).decode("utf-8", errors="replace")
 
                     # Анализируем текст через GPT-4
-                    analysis_result = analyze_with_gpt4(text, "Проанализируй текст письма и предложи рекомендации.")
+                    analysis_result = analyze_with_gpt4(text, "Проанализируй текст письма и предложи рекомендации. Используй Markdown-разметку для форматирования.")
                     logging.info(f"Analysis result: {analysis_result}")
 
                     # Отправляем рекомендацию в Telegram
@@ -99,35 +120,60 @@ def analyze_with_gpt4(text, prompt):
         logging.error(f"Error analyzing text with GPT-4: {str(e)}")
         return None
 
+def split_message(message, max_length=4096):
+    """
+    Разделяет сообщение на части, если оно превышает максимальную длину.
+
+    :param message: Исходное сообщение.
+    :param max_length: Максимальная длина сообщения (по умолчанию 4096 символов).
+    :return: Список частей сообщения.
+    """
+    if len(message) <= max_length:
+        return [message]
+
+    parts = []
+    while len(message) > 0:
+        part = message[:max_length]
+        parts.append(part)
+        message = message[max_length:]
+    return parts
+
 def send_to_telegram(bot_token, chat_id, subject, message):
     """
-    Отправляет сообщение в Telegram с Markdown-форматированием.
-
+    Отправляет сообщение в Telegram с MarkdownV2-форматированием.
+    Если сообщение слишком длинное, разделяет его на части.
+    
     :param bot_token: Токен вашего Telegram-бота.
     :param chat_id: ID чата.
     :param subject: Тема письма.
     :param message: Сообщение для отправки.
     """
     try:
-        # Экранируем специальные символы в теме и сообщении
+        # Экранируем специальные символы для MarkdownV2
         subject = escape_markdown(subject)
         message = escape_markdown(message)
 
         # Форматируем сообщение
-        formatted_message = f"**Тема:** {subject}\n\n> {message}"
+        formatted_message = f"**Тема:** {subject}\n\n{message}"
 
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": formatted_message,
-            "parse_mode": "MarkdownV2"  # Включаем Markdown-форматирование
-        }
-        response = requests.post(url, json=payload)
-        logging.info(f"Message sent to Telegram: {response.json()}")
-        return response.json()
+        # Разделяем сообщение на части, если оно слишком длинное
+        message_parts = split_message(formatted_message)
+
+        # Отправляем каждую часть отдельным сообщением
+        for part in message_parts:
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            payload = {
+                "chat_id": chat_id,
+                "text": part,
+                "parse_mode": "MarkdownV2"  # Включаем MarkdownV2-форматирование
+            }
+            response = requests.post(url, json=payload)
+            logging.info(f"Message part sent to Telegram: {response.json()}")
+
+        return True
     except Exception as e:
         logging.error(f"Error sending message to Telegram: {str(e)}")
-        return None
+        return False
 
 def escape_markdown(text):
     """
@@ -138,7 +184,6 @@ def escape_markdown(text):
     """
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
-
 
 def load_config():
     """
@@ -170,7 +215,7 @@ def main():
     TELEGRAM_CHAT_ID = config["telegram_chat_id"]
 
     # Промпт для нейросети
-    prompt = "Проанализируй текст письма и предложи рекомендации! Только пожалуйста кратно, прям тезисно!"
+    prompt = "Проанализируй текст письма и предложи решение, используя только краткие тезисы и HTML-разметку для форматирования."
 
     while True:
         try:
@@ -180,7 +225,9 @@ def main():
                 try:
                     # Извлекаем тему письма
                     subject = email_msg["Subject"]
-                    if not subject:
+                    if subject:
+                        subject = decode_mime_header(subject)  # Декодируем тему письма
+                    else:
                         subject = "Без темы"
 
                     # Извлекаем текст письма
@@ -188,9 +235,9 @@ def main():
                     if email_msg.is_multipart():
                         for part in email_msg.walk():
                             if part.get_content_type() == "text/plain":
-                                text += part.get_payload(decode=True).decode()
+                                text += part.get_payload(decode=True).decode("utf-8", errors="replace")
                     else:
-                        text = email_msg.get_payload(decode=True).decode()
+                        text = email_msg.get_payload(decode=True).decode("utf-8", errors="replace")
 
                     # Анализируем текст через GPT-4
                     analysis_result = analyze_with_gpt4(text, prompt)
