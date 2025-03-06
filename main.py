@@ -139,7 +139,6 @@ def escape_markdown(text):
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
-import os
 
 def load_config():
     """
