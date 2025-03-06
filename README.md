@@ -36,30 +36,6 @@ TELEGRAM_CHAT_ID=
 ```bash
 docker-compose up --build
 ```
-5. Дополнительные улучшения(не обязательно):
-
-Если вы хотите сохранять логи в файл, добавьте монтирование `volume` для логов:
-
-```yaml
-volumes:
-   - .:/app
-   - ./logs:/app/logs  # Монтируем папку для логов
-```
-
-6. Обновите код для записи логов в файл:
-
-```python
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("logs/mail-bot.log"),  # Логи в файл
-        logging.StreamHandler()  # Логи в консоль
-    ]
-)
-```
 
 # Итог
 Теперь ваш проект упакован в Docker и готов к развёртыванию `"одной командой"`. 
