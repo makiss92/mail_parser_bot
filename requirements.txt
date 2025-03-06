@@ -4,15 +4,4 @@ asyncio
 python-dotenv
 imaplib2
 email-validator
-
-# Для работы с GPT-4 через g4f
-g4f  # Убедитесь, что версия актуальна
-
-# Для логирования
-logging
-
-# Для работы с JSON
-jsonlib
-
-# Для обработки текста (если используется)
-nltk
+g4f # Для работы с GPT-4 через g4f
