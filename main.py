@@ -87,7 +87,7 @@ def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
                         text = msg.get_payload(decode=True).decode("utf-8", errors="replace")
 
                     # Анализируем текст через GPT-4
-                    analysis_result = analyze_with_gpt4(text, "Проанализируй текст письма и предложи решение, используя только краткие тезисы и HTML-разметку для форматирования.")
+                    analysis_result = analyze_with_gpt4(text, "Проанализируй текст письма и предложи решение на русском язвке, используя только краткие тезисы и HTML-разметку для форматирования.")
                     logging.info(f"Analysis result: {analysis_result}")
 
                     # Отправляем рекомендацию в Telegram
@@ -214,7 +214,7 @@ def main():
     TELEGRAM_CHAT_ID = config["telegram_chat_id"]
 
     # Промпт для нейросети
-    prompt = "Проанализируй текст письма и предложи решение, используя только краткие тезисы и HTML-разметку для форматирования."
+    prompt = "Проанализируй текст письма и предложи решение на русском язвке, используя только краткие тезисы и HTML-разметку для форматирования."
 
     while True:
         try:
