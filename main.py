@@ -164,7 +164,7 @@ def send_to_telegram(bot_token, chat_id, subject, message):
             payload = {
                 "chat_id": chat_id,
                 "text": part,
-                "parse_mode": "HTML"  # Включаем HTML-форматирование
+                "parse_mode": "HTML"  # Включаем HTML-форматирование..
             }
             response = requests.post(url, json=payload)
             logging.info(f"Message part sent to Telegram: {response.json()}")
