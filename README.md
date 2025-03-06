@@ -1,4 +1,4 @@
-# Чтобы развернуть проект, Вам необходимо:
+# Чтобы развернуть проект необходимо:
 
 1. Убедитесь, что **Docker** и **Docker Compose** установлены.  
    Вы можете найти инструкции по установке Docker [здесь](https://docs.docker.com/engine/install/).
@@ -11,6 +11,7 @@
     EMAIL_PASSWORD=
     TELEGRAM_BOT_TOKEN=
     TELEGRAM_CHAT_ID=
+   
 
 5. Запустите контейнер:
    ```bash
