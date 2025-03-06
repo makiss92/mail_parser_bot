@@ -1,14 +1,17 @@
 version: '3.8'
 
 services:
-  app:
+  mail-bot:
     build: .
     container_name: mail-bot
-    environment:
-      - IMAP_SERVER=${IMAP_SERVER}
-      - EMAIL_USERNAME=${EMAIL_USERNAME}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    working_dir: /app  # Указываем рабочую директорию
     volumes:
       - .:/app
+    env_file:
+      - .env  # Указываем файл с переменными окружения
+    restart: unless-stopped  # Перезапуск контейнера при сбоях
+    logging:
+      driver: "json-file"  # Сохраняем логи в файл
+      options:
+        max-size: "10m"  # Максимальный размер лог-файла
+        max-file: "3"     # Максимальное количество лог-файлов
