@@ -5,4 +5,4 @@ imaplib2
 email-validator
 g4f
 logging
-jsonlib
+#jsonlib
