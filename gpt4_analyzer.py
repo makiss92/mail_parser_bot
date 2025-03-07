@@ -16,7 +16,7 @@ class GPT4Analyzer:
         Если ответ приходит в формате JSON, извлекает текст из него.
         """
         if not GPT4_AVAILABLE:
-            return "GPT-4 analysis is disabled. Please install the g4f library."
+            return "Анализ GPT-4 отключен. Установите библиотеку g4f."
 
         try:
             response = await asyncio.to_thread(
@@ -38,8 +38,8 @@ class GPT4Analyzer:
                     if '"content":"' in line
                 )
 
-            logging.info(f"GPT-4 analysis successful: {result}")
+            logging.info(f"Анализ GPT-4 выполнен успешно: {result}")
             return result
         except Exception as e:
-            logging.error(f"Error analyzing text with GPT-4: {str(e)}")
+            logging.error(f"Ошибка при анализе текста с GPT-4: {str(e)}")
             return "Не удалось получить анализ от GPT-4."

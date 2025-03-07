@@ -26,13 +26,13 @@ class TelegramHandler:
                     async with session.post(url, json=payload) as response:
                         response_data = await response.json()
                         if response_data.get("ok"):
-                            logging.info(f"Message part sent to Telegram: {response_data}")
+                            logging.info(f"Часть сообщения отправлена в Telegram: {response_data}")
                         else:
-                            logging.error(f"Failed to send message part: {response_data}")
+                            logging.error(f"Не удалось отправить часть сообщения: {response_data}")
 
             return True
         except Exception as e:
-            logging.error(f"Error sending message to Telegram: {str(e)}")
+            logging.error(f"Ошибка при отправке сообщения в Telegram: {str(e)}")
             return False
 
     def split_message(self, message, max_length=4096):
@@ -43,7 +43,7 @@ class TelegramHandler:
             part = message[:max_length]
             parts.append(part)
             message = message[max_length:]
-        logging.info(f"Message split into {len(parts)} parts.")
+        logging.info(f"Сообщение разделено на {len(parts)} частей.")
         return parts
 
     def escape_markdown(self, text):
@@ -57,5 +57,5 @@ class TelegramHandler:
         if escaped_text.count("```") % 2 != 0:
             escaped_text = escaped_text.replace("```", "`")
 
-        logging.info(f"Escaped text: {escaped_text}")
+        logging.info(f"Экранированный текст: {escaped_text}")
         return escaped_text

@@ -1,4 +1,3 @@
-# config.py
 import os
 import logging
 from dotenv import load_dotenv
@@ -8,7 +7,7 @@ try:
     from g4f.client import Client
     GPT4_AVAILABLE = True
 except ImportError:
-    logging.warning("g4f library is not installed. GPT-4 analysis will be disabled.")
+    logging.warning("Библиотека g4f не установлена. Анализ GPT-4 будет отключен.")
     GPT4_AVAILABLE = False
 
 # Настройка логов

@@ -37,10 +37,10 @@ class EmailHandler:
         status, messages = mail.search(None, 'UNSEEN')
         if status == 'OK' and messages[0]:
             email_ids = messages[0].split()
-            logging.info(f"Found {len(email_ids)} unread emails.")
+            logging.info(f"Найдено {len(email_ids)} непрочитанных писем.")
         else:
             email_ids = []
-            logging.info("No unread emails found.")
+            logging.info("Непрочитанных писем не найдено.")
 
         emails = []
         for e_id in email_ids:
@@ -54,11 +54,11 @@ class EmailHandler:
                             subject = self.decode_mime_header(subject)
                         else:
                             subject = "Без темы"
-                        logging.info(f"Processing email with ID: {e_id.decode()}, Subject: {subject}")
+                        logging.info(f"Обработка письма с ID: {e_id.decode()}, Тема: {subject}")
 
                         text = self.extract_text(msg)
                         emails.append((e_id.decode(), subject, text))
             except Exception as e:
-                logging.error(f"Error processing email {e_id.decode()}: {str(e)}")
+                logging.error(f"Ошибка при обработке письма {e_id.decode()}: {str(e)}")
 
         return emails

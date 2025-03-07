@@ -29,7 +29,7 @@ async def fetch_unread_emails(username, password, imap_server, bot_token, chat_i
     emails = email_handler.fetch_unread_emails()
     for e_id, subject, text in emails:
         if e_id in processed_emails:
-            logging.info(f"Email {e_id} already processed. Skipping.")
+            logging.info(f"Письмо {e_id} уже обработано. Пропускаем.")
             continue
 
         # Анализируем текст письма
@@ -39,10 +39,10 @@ async def fetch_unread_emails(username, password, imap_server, bot_token, chat_i
         # Отправляем результат в Telegram
         await telegram_handler.send_message(subject, analysis_result)
         await save_processed_email(e_id)
-        logging.info(f"Email {e_id} processed and sent to Telegram.")
+        logging.info(f"Письмо {e_id} обработано и отправлено в Telegram.")
 
 async def main():
-    logging.info("Starting the script...")
+    logging.info("Запуск скрипта...")
     config = load_config()
 
     IMAP_SERVER = config["IMAP_SERVER"]
@@ -54,10 +54,10 @@ async def main():
     while True:
         try:
             await fetch_unread_emails(EMAIL_USERNAME, EMAIL_PASSWORD, IMAP_SERVER, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-            await asyncio.sleep(300)
+            await asyncio.sleep(10)
         except Exception as e:
-            logging.error(f"Critical error: {str(e)}")
-            await asyncio.sleep(600)
+            logging.error(f"Критическая ошибка: {str(e)}")
+            await asyncio.sleep(60)
 
 if __name__ == "__main__":
     asyncio.run(main())
