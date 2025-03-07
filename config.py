@@ -26,20 +26,15 @@ def load_config():
         "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     }
 
-    # Собираем информацию о загруженных переменных
-    loaded_vars = []
-    missing_vars = []
-    for key, value in config.items():
-        if value is not None:
-            loaded_vars.append(key)
-        else:
-            missing_vars.append(key)
+    # Считаем количество загруженных переменных
+    loaded_count = sum(1 for value in config.values() if value is not None)
+    total_count = len(config)
 
-    # Формируем одно сообщение для логов
-    if missing_vars:
+    if loaded_count == total_count:
+        logging.info(f"Загружены все {loaded_count} переменных окружения.")
+    else:
+        missing_vars = [key for key, value in config.items() if value is None]
         logging.error(f"Переменные окружения не найдены: {', '.join(missing_vars)}")
         raise ValueError("Не все переменные окружения заданы.")
-    else:
-        logging.info(f"Загружены переменные окружения: {', '.join(loaded_vars)}")
 
     return config
