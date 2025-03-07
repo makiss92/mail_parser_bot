@@ -1,9 +1,6 @@
-# Игнорировать конфиденциальные данные
-config.json
 .env
-processed_emails.json
-
-# Игнорировать виртуальное окружение
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 venv/
-har_and_cookies/
-__pycache__

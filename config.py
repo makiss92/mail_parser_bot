@@ -1,6 +1,15 @@
+# config.py
 import os
 import logging
 from dotenv import load_dotenv
+
+# Проверка доступности библиотеки g4f
+try:
+    from g4f.client import Client
+    GPT4_AVAILABLE = True
+except ImportError:
+    logging.warning("g4f library is not installed. GPT-4 analysis will be disabled.")
+    GPT4_AVAILABLE = False
 
 # Настройка логов
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -18,15 +27,20 @@ def load_config():
         "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
     }
 
-    # Считаем количество загруженных переменных
-    loaded_count = sum(1 for value in config.values() if value is not None)
-    total_count = len(config)
+    # Собираем информацию о загруженных переменных
+    loaded_vars = []
+    missing_vars = []
+    for key, value in config.items():
+        if value is not None:
+            loaded_vars.append(key)
+        else:
+            missing_vars.append(key)
 
-    if loaded_count == total_count:
-        logging.info(f"Загружены все {loaded_count} переменных окружения.")
-    else:
-        missing_vars = [key for key, value in config.items() if value is None]
+    # Формируем одно сообщение для логов
+    if missing_vars:
         logging.error(f"Переменные окружения не найдены: {', '.join(missing_vars)}")
         raise ValueError("Не все переменные окружения заданы.")
+    else:
+        logging.info(f"Загружены переменные окружения: {', '.join(loaded_vars)}")
 
     return config

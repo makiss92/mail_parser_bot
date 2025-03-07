@@ -8,9 +8,6 @@ class EmailHandler:
         self.imap_server = imap_server
         self.username = username
         self.password = password
-        self.mail = imaplib.IMAP4_SSL(imap_server)
-        self.mail.login(username, password)
-        self.mail.select("inbox")
 
     def decode_mime_header(self, header):
         decoded_parts = decode_header(header)
@@ -33,19 +30,22 @@ class EmailHandler:
         return text
 
     def fetch_unread_emails(self):
-        status, messages = self.mail.search(None, 'UNSEEN')
+        mail = imaplib.IMAP4_SSL(self.imap_server)
+        mail.login(self.username, self.password)
+        mail.select("inbox")
+
+        status, messages = mail.search(None, 'UNSEEN')
         if status == 'OK' and messages[0]:
             email_ids = messages[0].split()
-            logging.info(f"Найдено {len(email_ids)} новое письмо.")
+            logging.info(f"Found {len(email_ids)} unread emails.")
         else:
             email_ids = []
-            logging.info("Новых писем не найдено.")
+            logging.info("No unread emails found.")
 
         emails = []
         for e_id in email_ids:
-            e_id_decoded = e_id.decode()
             try:
-                _, msg_data = self.mail.fetch(e_id, "(RFC822)")
+                _, msg_data = mail.fetch(e_id, "(RFC822)")
                 for response_part in msg_data:
                     if isinstance(response_part, tuple):
                         msg = email.message_from_bytes(response_part[1])
@@ -54,11 +54,11 @@ class EmailHandler:
                             subject = self.decode_mime_header(subject)
                         else:
                             subject = "Без темы"
-                        #logging.info(f"Processing email with ID: {e_id_decoded}, Subject: {subject}")
+                        logging.info(f"Processing email with ID: {e_id.decode()}, Subject: {subject}")
 
                         text = self.extract_text(msg)
-                        emails.append((e_id_decoded, subject, text))
+                        emails.append((e_id.decode(), subject, text))
             except Exception as e:
-                logging.error(f"Ошибка при обработке почты {e_id_decoded}: {str(e)}")
+                logging.error(f"Error processing email {e_id.decode()}: {str(e)}")
 
         return emails

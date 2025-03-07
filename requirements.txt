@@ -1,7 +1,8 @@
-# Основные зависимости
 aiohttp
 asyncio
 python-dotenv
 imaplib2
 email-validator
-g4f # Для работы с GPT-4 через g4f
+g4f
+logging
+jsonlib
