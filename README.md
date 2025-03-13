@@ -24,12 +24,12 @@
 
 3. Создать файл `.env` и заполните его конфиденциальными данными:
 ```ini
-IMAP_SERVER=`imap.example.com`
-EMAIL_USERNAME=`your_email@example.com`
-EMAIL_PASSWORD=`your_password`
-TELEGRAM_BOT_TOKEN=`your_telegram_bot_token`
-TELEGRAM_CHAT_ID=`your_telegram_chat_id`
-PROMPT_TEXT=`request_text_for_gpt`
+IMAP_SERVER=imap.example.com
+EMAIL_USERNAME=your_email@example.com
+EMAIL_PASSWORD=your_password
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+PROMPT_TEXT=request_text_for_gpt
 ```
 
 4. Запустить контейнер:
