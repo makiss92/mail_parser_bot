@@ -4,7 +4,7 @@ import logging
 from email_handler import EmailHandler
 from telegram_handler import TelegramHandler
 from gpt4_analyzer import GPT4Analyzer
-from config import load_config, GPT4_AVAILABLE  # Импортируем переменную
+from config import load_config, GPT4_AVAILABLE
 
 CONFIG_FILE = "processed_emails.json"
 
@@ -35,7 +35,7 @@ def should_exclude_email(subject, text):
             return True
     return False
 
-async def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
+async def fetch_unread_emails(username, password, imap_server, bot_token, chat_id, prompt_text):
     email_handler = EmailHandler(imap_server, username, password)
     telegram_handler = TelegramHandler(bot_token, chat_id)
     processed_emails = await load_processed_emails()
@@ -51,9 +51,8 @@ async def fetch_unread_emails(username, password, imap_server, bot_token, chat_i
             logging.info(f"Письмо {e_id} исключено из обработки. Тема: {subject}")
             continue
 
-        # Анализируем текст письма
-        prompt = "Проанализируй текст письма, напиши рекомендации!"
-        analysis_result = await GPT4Analyzer().analyze_text(text, prompt)
+        # Анализируем текст письма с использованием заданного запроса
+        analysis_result = await GPT4Analyzer().analyze_text(text, prompt_text)
 
         # Отправляем результат в Telegram
         await telegram_handler.send_message(subject, analysis_result)
@@ -69,14 +68,15 @@ async def main():
     EMAIL_PASSWORD = config["EMAIL_PASSWORD"]
     TELEGRAM_BOT_TOKEN = config["TELEGRAM_BOT_TOKEN"]
     TELEGRAM_CHAT_ID = config["TELEGRAM_CHAT_ID"]
+    PROMPT_TEXT = config["PROMPT_TEXT"]
 
     while True:
         try:
-            await fetch_unread_emails(EMAIL_USERNAME, EMAIL_PASSWORD, IMAP_SERVER, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
+            await fetch_unread_emails(EMAIL_USERNAME, EMAIL_PASSWORD, IMAP_SERVER, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, PROMPT_TEXT)
+            await asyncio.sleep(10)  # Интервал проверки: 5 минут (300 секунд)
         except Exception as e:
             logging.error(f"Критическая ошибка: {str(e)}")
-            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
+            await asyncio.sleep(30)  # Интервал проверки: 5 минут (300 секунд)
 
 if __name__ == "__main__":
     asyncio.run(main())

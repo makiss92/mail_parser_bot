@@ -24,6 +24,7 @@ def load_config():
         "EMAIL_PASSWORD": os.getenv("EMAIL_PASSWORD"),
         "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN"),
         "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
+        "PROMPT_TEXT": os.getenv("PROMPT_TEXT"),
     }
 
     # Считаем количество загруженных переменных
@@ -32,6 +33,7 @@ def load_config():
 
     if loaded_count == total_count:
         logging.info(f"Загружены все {loaded_count} переменных окружения.")
+        pass
     else:
         missing_vars = [key for key, value in config.items() if value is None]
         logging.error(f"Переменные окружения не найдены: {', '.join(missing_vars)}")
