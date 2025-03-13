@@ -73,10 +73,10 @@ async def main():
     while True:
         try:
             await fetch_unread_emails(EMAIL_USERNAME, EMAIL_PASSWORD, IMAP_SERVER, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, PROMPT_TEXT)
-            await asyncio.sleep(10)  # Интервал проверки: 5 минут (300 секунд)
+            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
         except Exception as e:
             logging.error(f"Критическая ошибка: {str(e)}")
-            await asyncio.sleep(30)  # Интервал проверки: 5 минут (300 секунд)
+            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
 
 if __name__ == "__main__":
     asyncio.run(main())
