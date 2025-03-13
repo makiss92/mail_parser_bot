@@ -21,6 +21,20 @@ async def save_processed_email(email_id):
     with open(CONFIG_FILE, "w") as f:
         json.dump(list(processed), f)
 
+def should_exclude_email(subject, text):
+    """
+    Проверяет, нужно ли исключить письмо из обработки.
+    """
+    excluded_keywords = [
+        "Vobile Compliance"
+    ]
+
+    # Проверяем тему и текст письма
+    for keyword in excluded_keywords:
+        if keyword.lower() in subject.lower() or keyword.lower() in text.lower():
+            return True
+    return False
+
 async def fetch_unread_emails(username, password, imap_server, bot_token, chat_id):
     email_handler = EmailHandler(imap_server, username, password)
     telegram_handler = TelegramHandler(bot_token, chat_id)
@@ -30,6 +44,11 @@ async def fetch_unread_emails(username, password, imap_server, bot_token, chat_i
     for e_id, subject, text in emails:
         if e_id in processed_emails:
             logging.info(f"Письмо {e_id} уже обработано. Пропускаем.")
+            continue
+
+        # Проверяем, нужно ли исключить письмо
+        if should_exclude_email(subject, text):
+            logging.info(f"Письмо {e_id} исключено из обработки. Тема: {subject}")
             continue
 
         # Анализируем текст письма
@@ -54,10 +73,10 @@ async def main():
     while True:
         try:
             await fetch_unread_emails(EMAIL_USERNAME, EMAIL_PASSWORD, IMAP_SERVER, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-            await asyncio.sleep(300) # Интервал проверки новых писем (в секундах)
+            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
         except Exception as e:
             logging.error(f"Критическая ошибка: {str(e)}")
-            await asyncio.sleep(300) # Интервал проверки новых писем (в секундах)
+            await asyncio.sleep(300)  # Интервал проверки: 5 минут (300 секунд)
 
 if __name__ == "__main__":
     asyncio.run(main())

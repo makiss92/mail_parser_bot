@@ -33,12 +33,12 @@ class GPT4Analyzer:
             if result.strip().startswith("data: {"):
                 # Извлекаем текст из JSON
                 result = " ".join(
-                    line.split('"content":"')[1].split('"}')[0] 
-                    for line in result.strip().splitlines() 
+                    line.split('"content":"')[1].split('"}')[0]
+                    for line in result.strip().splitlines()
                     if '"content":"' in line
                 )
 
-            logging.info(f"Анализ GPT-4 выполнен успешно: {result}")
+            #logging.info(f"Анализ GPT-4 выполнен успешно: {result}")
             return result
         except Exception as e:
             logging.error(f"Ошибка при анализе текста с GPT-4: {str(e)}")

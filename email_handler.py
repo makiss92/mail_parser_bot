@@ -40,7 +40,7 @@ class EmailHandler:
             logging.info(f"Найдено {len(email_ids)} непрочитанных писем.")
         else:
             email_ids = []
-            logging.info("Непрочитанных писем не найдено.")
+            #logging.info("Непрочитанных писем не найдено.")
 
         emails = []
         for e_id in email_ids:
@@ -54,7 +54,7 @@ class EmailHandler:
                             subject = self.decode_mime_header(subject)
                         else:
                             subject = "Без темы"
-                        logging.info(f"Обработка письма с ID: {e_id.decode()}, Тема: {subject}")
+                        #logging.info(f"Обработка письма с ID: {e_id.decode()}, Тема: {subject}")
 
                         text = self.extract_text(msg)
                         emails.append((e_id.decode(), subject, text))
