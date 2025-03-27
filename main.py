@@ -28,7 +28,9 @@ def should_exclude_email(subject, text):
     excluded_keywords = [
         "Vobile Compliance",
         "Notice of Claimed Infringement",
-        "Vobile, Inc."
+        "Vobile, Inc.",
+        "McGrawHill",
+        "Global Services"
     ]
 
     # Проверяем тему и текст письма
