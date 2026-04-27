@@ -4,5 +4,6 @@ python-dotenv
 imaplib2
 email-validator
 g4f
+aiohttp-socks
 #logging
 #jsonlib
