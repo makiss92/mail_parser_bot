@@ -100,10 +100,26 @@ async def worker(mail_queue, telegram_handler, analyzer, prompt_text, processed_
 
 
 async def stats_logger(mail_queue):
-    while True:
-        await asyncio.sleep(60)
-        logging.info(f"[Сводка] {stats} очередь={mail_queue.size()}")
+    last_stats = None
 
+    while True:
+        await asyncio.sleep(600)
+
+        current = {
+            "processed": stats.get("processed", 0),
+            "fallback": stats.get("fallback", 0),
+            "errors": stats.get("errors", 0),
+            "queue": mail_queue.size()
+        }
+
+        if current != last_stats:
+            logging.info(
+                f"Сводка: processed={current['processed']} "
+                f"fallback={current['fallback']} "
+                f"errors={current['errors']} "
+                f"queue={current['queue']}"
+            )
+            last_stats = current.copy()
 
 async def main():
     logging.info("Запуск...")
