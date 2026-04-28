@@ -1,7 +1,9 @@
 import imaplib
 import email
 from email.header import decode_header
+from email.utils import parsedate_to_datetime
 import logging
+
 
 class EmailHandler:
     def __init__(self, imap_server, username, password):
@@ -9,56 +11,164 @@ class EmailHandler:
         self.username = username
         self.password = password
 
-    def decode_mime_header(self, header):
-        decoded_parts = decode_header(header)
-        decoded_str = ""
-        for part, encoding in decoded_parts:
-            if isinstance(part, bytes):
-                decoded_str += part.decode(encoding or "utf-8", errors="replace")
-            else:
-                decoded_str += part
-        return decoded_str
-
-    def extract_text(self, msg):
-        text = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    text += part.get_payload(decode=True).decode("utf-8", errors="replace")
-        else:
-            text = msg.get_payload(decode=True).decode("utf-8", errors="replace")
-        return text
+    # ------------------------
+    # 📬 ПОЛУЧЕНИЕ ПИСЕМ
+    # ------------------------
 
     def fetch_unread_emails(self):
-        mail = imaplib.IMAP4_SSL(self.imap_server)
-        mail.login(self.username, self.password)
-        mail.select("inbox")
+        result = []
+        mail = None
 
-        status, messages = mail.search(None, 'UNSEEN')
-        if status == 'OK' and messages[0]:
+        logging.info("Проверка почты...")
+
+        try:
+            mail = imaplib.IMAP4_SSL(self.imap_server, timeout=15)
+            mail.login(self.username, self.password)
+
+            # ❗ ВАЖНО: без readonly
+            mail.select("inbox")
+
+            status, messages = mail.search(None, "UNSEEN")
+
+            if status != "OK":
+                logging.warning("Не удалось получить список писем")
+                return result
+
             email_ids = messages[0].split()
-            logging.info(f"Найдено {len(email_ids)} непрочитанных писем.")
-        else:
-            email_ids = []
-            #logging.info("Непрочитанных писем не найдено.")
 
-        emails = []
-        for e_id in email_ids:
-            try:
-                _, msg_data = mail.fetch(e_id, "(RFC822)")
-                for response_part in msg_data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
-                        subject = msg["Subject"]
-                        if subject:
-                            subject = self.decode_mime_header(subject)
-                        else:
-                            subject = "Без темы"
-                        #logging.info(f"Обработка письма с ID: {e_id.decode()}, Тема: {subject}")
+            if not email_ids:
+                logging.info("Новых писем нет")
+                return result
 
-                        text = self.extract_text(msg)
-                        emails.append((e_id.decode(), subject, text))
-            except Exception as e:
-                logging.error(f"Ошибка при обработке письма {e_id.decode()}: {str(e)}")
+            logging.info(f"Найдено непрочитанных писем: {len(email_ids)}")
 
-        return emails
+            for num in email_ids:
+                e_id = num.decode()
+
+                try:
+                    status, msg_data = mail.fetch(num, "(RFC822)")
+
+                    if status != "OK" or not msg_data or not msg_data[0]:
+                        logging.warning(f"[{e_id}] Не удалось получить письмо")
+                        continue
+
+                    msg = email.message_from_bytes(msg_data[0][1])
+
+                    subject = self._decode(msg.get("Subject"))
+                    body = self._extract_text(msg)
+
+                    date_raw = msg.get("Date", "")
+                    date_parsed = self._parse_date(date_raw)
+
+                    logging.info(f"[{e_id}] Письмо: {subject[:60]}")
+
+                    result.append((e_id, subject, body, date_parsed))
+
+                except Exception as e:
+                    logging.error(f"[{e_id}] Ошибка обработки письма: {e}")
+
+        except Exception as e:
+            logging.error(f"Ошибка подключения к IMAP: {e}")
+
+        finally:
+            if mail:
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
+
+            logging.info("Проверка завершена")
+
+        return result
+
+    # ------------------------
+    # ✅ ПОМЕТКА ПРОЧИТАННЫМ
+    # ------------------------
+
+    def mark_as_seen(self, email_id):
+        mail = None
+
+        try:
+            mail = imaplib.IMAP4_SSL(self.imap_server, timeout=10)
+            mail.login(self.username, self.password)
+            mail.select("inbox")
+
+            mail.store(email_id, "+FLAGS", "\\Seen")
+
+            logging.info(f"[{email_id}] Помечено как прочитанное")
+
+        except Exception as e:
+            logging.warning(f"[{email_id}] Ошибка mark_as_seen: {e}")
+
+        finally:
+            if mail:
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
+
+    # ------------------------
+    # 🔤 ДЕКОД ТЕМЫ
+    # ------------------------
+
+    def _decode(self, value):
+        if not value:
+            return ""
+
+        parts = decode_header(value)
+        result = ""
+
+        for decoded, charset in parts:
+            if isinstance(decoded, bytes):
+                result += decoded.decode(charset or "utf-8", errors="ignore")
+            else:
+                result += decoded
+
+        result = result.replace("\r", "").replace("\n", " ").strip()
+
+        result = " ".join(result.split())
+
+        return result
+
+    # ------------------------
+    # 📅 ДАТА
+    # ------------------------
+
+    def _parse_date(self, date_str):
+        try:
+            dt = parsedate_to_datetime(date_str)
+            return dt.strftime("%d.%m.%Y %H:%M:%S")
+        except Exception:
+            return "неизвестно"
+
+    # ------------------------
+    # 📄 ТЕЛО ПИСЬМА
+    # ------------------------
+
+    def _extract_text(self, msg):
+        try:
+            text = ""
+
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    payload = part.get_payload(decode=True)
+
+                    if not payload:
+                        continue
+
+                    if content_type == "text/plain":
+                        return payload.decode(errors="ignore")
+
+                    if content_type == "text/html" and not text:
+                        text = payload.decode(errors="ignore")
+
+            else:
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    return payload.decode(errors="ignore")
+
+            return text
+
+        except Exception:
+            return ""

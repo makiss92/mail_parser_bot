@@ -1,8 +1,7 @@
 import aiohttp
 import logging
 import os
-import re
-
+import asyncio
 from aiohttp_socks import ProxyConnector
 
 
@@ -10,141 +9,83 @@ class TelegramHandler:
     def __init__(self, bot_token, chat_id):
         self.bot_token = bot_token
         self.chat_id = chat_id
-        self.proxy_url = os.getenv("SOCKS5_PROXY")
+        self._proxy_logged = False
 
-        if self.proxy_url:
-            logging.info("Используется SOCKS5 прокси")
-            self.connector = ProxyConnector.from_url(self.proxy_url)
+        proxy_url = os.getenv("SOCKS5_PROXY")
+
+        if proxy_url:
+            if not self._proxy_logged:
+                logging.info("Используется SOCKS5 прокси")
+                self._proxy_logged = True
+            self.connector = ProxyConnector.from_url(proxy_url)
         else:
             logging.info("Прокси не используется")
             self.connector = None
 
-        self.timeout = aiohttp.ClientTimeout(total=15)
-
-    # ------------------------
-    # 🚀 ОСНОВНОЙ МЕТОД
-    # ------------------------
 
     async def send_message(self, subject, message):
         try:
-            message = self.normalize_text(message)
-            message = self.format_message(message)
-
-            subject = self.escape_html(subject)
-
-            formatted_message = (
-                f"🔐 <b>Тема:</b> {subject}\n"
-                f"{'─' * 35}\n\n"
-                f"{message}"
-            )
-
-            parts = self.split_message(formatted_message)
+            safe_subject = self.escape_html(subject)
+            formatted = f"<b>Тема:</b> {safe_subject}\n\n{message}"
+            parts = self.split_message(formatted)
 
             for part in parts:
-                try:
-                    async with aiohttp.ClientSession(
-                        connector=self.connector,
-                        timeout=self.timeout
-                    ) as session:
+                success = await self._send_with_retry(part)
 
-                        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-                        payload = {
-                            "chat_id": self.chat_id,
-                            "text": part,
-                            "parse_mode": "HTML"
-                        }
-
-                        async with session.post(url, json=payload) as response:
-                            data = await response.json()
-
-                            if data.get("ok"):
-                                logging.info("Сообщение отправлено в Telegram.")
-                            else:
-                                logging.error(f"Ошибка Telegram: {data}")
-
-                except Exception as e:
-                    logging.error(f"Ошибка отправки части: {str(e)}")
+                if not success:
+                    logging.error("Не удалось отправить сообщение в Telegram")
+                    return False
 
             return True
 
         except Exception as e:
-            logging.error(f"Ошибка при отправке сообщения: {str(e)}")
+            logging.error(f"Ошибка Telegram: {e}")
             return False
 
-    # ------------------------
-    # 🧠 ФОРМАТИРОВАНИЕ
-    # ------------------------
 
-    def normalize_text(self, text: str) -> str:
-        """Чистим мусор от LLM"""
-        if not text:
-            return text
+    async def _send_with_retry(self, text, retries=3):
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
-        lines = text.splitlines()
-        cleaned = []
+        payload = {
+            "chat_id": self.chat_id,
+            "text": text,
+            "parse_mode": "HTML"
+        }
 
-        for line in lines:
-            l = line.strip().lower()
+        for attempt in range(1, retries + 1):
+            try:
+                connector = ProxyConnector.from_url(os.getenv("SOCKS5_PROXY")) if os.getenv("SOCKS5_PROXY") else None
 
-            if any(x in l for x in [
-                "it seems",
-                "it appears",
-                "you have received",
-                "based on the information"
-            ]):
-                continue
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.post(url, json=payload, timeout=10) as resp:
+                        data = await resp.json()
 
-            cleaned.append(line)
+                        if data.get("ok"):
+                            logging.info("Сообщение отправлено")
+                            return True
+                        else:
+                            logging.error(f"Telegram error: {data}")
 
-        return "\n".join(cleaned).strip()
+            except Exception as e:
+                logging.warning(f"Telegram retry {attempt}: {e}")
 
-    def format_message(self, text: str) -> str:
-        """Красивый формат под Telegram"""
+            await asyncio.sleep(1)
 
-        text = self.escape_html(text)
+        return False
 
-        # 🔥 Заголовки
-        text = re.sub(r"(?i)тип[:\-]", "<b>Тип:</b>", text)
-        text = re.sub(r"(?i)классификация[:\-]", "<b>Классификация:</b>", text)
-        text = re.sub(r"(?i)описание[:\-]", "<b>Описание:</b>", text)
-        text = re.sub(r"(?i)объяснение[:\-]", "<b>Объяснение:</b>", text)
-        text = re.sub(r"(?i)рекомендации[:\-]", "<b>Рекомендации:</b>", text)
-        text = re.sub(r"(?i)действия[:\-]", "<b>Действия:</b>", text)
-
-        # 🔥 IP адреса
-        text = re.sub(
-            r"\b(\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?)\b",
-            r"<code>\1</code>",
-            text
-        )
-
-        # 🔥 списки
-        text = re.sub(r"^[\-\*]\s", "• ", text, flags=re.MULTILINE)
-
-        # 🔥 переносы
-        text = text.replace("\n\n", "\n")
-
-        return text
-
-    # ------------------------
-    # 🧰 УТИЛИТЫ
-    # ------------------------
 
     def split_message(self, message, max_length=4096):
-        if len(message) <= max_length:
-            return [message]
+        return [message[i:i + max_length] for i in range(0, len(message), max_length)]
 
-        parts = []
-        while len(message) > 0:
-            part = message[:max_length]
-            parts.append(part)
-            message = message[max_length:]
 
-        return parts
+    def escape_markdown(self, text):
+        escape_chars = "_*[]()~>#+-=|{}.!"
+        return "".join(f"\\{c}" if c in escape_chars else c for c in text)
+
 
     def escape_html(self, text):
         if not text:
-            return text
+            return ""
 
         return (
             text.replace("&", "&amp;")

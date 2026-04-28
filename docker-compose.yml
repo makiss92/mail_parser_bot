@@ -2,20 +2,34 @@ services:
   mail-bot:
     build: .
     container_name: mail-bot
-    working_dir: /app
-    volumes:
-      - .:/app
+    restart: unless-stopped
+
     env_file:
       - .env
-    restart: unless-stopped
+
+    environment:
+      - TZ=Europe/Moscow
+
+    volumes:
+      - ./data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
     networks:
       custom_network:
         ipv4_address: 10.187.0.10
+
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "main.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   custom_network:
