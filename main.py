@@ -6,7 +6,11 @@ from telegram_handler import TelegramHandler
 from gpt4_analyzer import GPT4Analyzer
 from config import load_config
 from utils.file_storage import AsyncJSONStorage
+from queue_manager import MailQueue
+from rate_limiter import RateLimiter
 
+llm_limiter = RateLimiter(5, 60)
+tg_limiter = RateLimiter(20, 60)
 
 storage = AsyncJSONStorage("processed_emails.json")
 
@@ -17,15 +21,11 @@ stats = {
 }
 
 
-# ------------------------
-# 📦 STORAGE
-# ------------------------
-
 async def load_processed_emails():
     try:
         data = await storage.read()
         return set(data)
-    except Exception:
+    except:
         return set()
 
 
@@ -33,135 +33,114 @@ async def save_processed_email(email_id):
     await storage.append_unique(email_id)
 
 
-# ------------------------
-# 🚫 ФИЛЬТР ПИСЕМ
-# ------------------------
-
 def should_exclude_email(subject, text):
     excluded_keywords = [
-        "Vobile Compliance",
-        "Notice of Claimed Infringement",
-        "Vobile, Inc.",
-        "McGrawHill",
-        "Global Services"
+        "Vobile", "McGrawHill", "Compliance"
     ]
-
-    for keyword in excluded_keywords:
-        if keyword.lower() in subject.lower() or keyword.lower() in text.lower():
-            return True
-
-    return False
+    return any(k.lower() in subject.lower() or k.lower() in text.lower() for k in excluded_keywords)
 
 
-# ------------------------
-# 📬 ОБРАБОТКА ПИСЕМ
-# ------------------------
+async def producer(email_handler, mail_queue, poll_interval):
+    while True:
+        try:
+            emails = email_handler.fetch_unread_emails()
 
-async def fetch_unread_emails(
-    email_handler,
-    telegram_handler,
-    analyzer,
-    prompt_text
-):
+            for mail in emails:
+                if mail_queue.size() > 150:
+                    logging.warning("Переполнение очереди")
+                    break
+
+                await mail_queue.put(mail)
+
+        except Exception as e:
+            logging.error(f"[PRODUCER] {e}")
+
+        await asyncio.sleep(poll_interval)
+
+
+async def worker(mail_queue, telegram_handler, analyzer, prompt_text, processed_emails):
     processed_emails = await load_processed_emails()
 
-    emails = email_handler.fetch_unread_emails()
-
-    for e_id, subject, text, date in emails:
-
-        if e_id in processed_emails:
-            continue
-
-        if should_exclude_email(subject, text):
-            logging.info(f"[{e_id}] Исключено: {subject[:80]}")
-            continue
-
-        logging.info(f"[{e_id}] Обработка: {subject[:80]}")
+    while True:
+        e_id, subject, text, date = await mail_queue.get()
 
         try:
-            # AI анализ
-            analysis_result = await analyzer.analyze_text(text, prompt_text)
+            if e_id in processed_emails:
+                mail_queue.task_done()
+                continue
 
-            # fallback метрика
-            if "fallback" in analysis_result.lower():
+            if should_exclude_email(subject, text):
+                mail_queue.task_done()
+                
+                continue
+            await llm_limiter.acquire()
+            result = await analyzer.analyze_text(text, prompt_text)
+
+            if "fallback" in result.lower():
                 stats["fallback"] += 1
 
-            # добавляем дату
-            full_message = f"<b>Дата:</b> {date}\n\n{analysis_result}"
+            message = f"<b>Дата:</b> {date}\n\n{result}"
 
-            # отправка
-            sent = await telegram_handler.send_message(subject, full_message)
+            await tg_limiter.acquire()
+            sent = await telegram_handler.send_message(subject, message)
 
             if sent:
                 stats["processed"] += 1
-                logging.info(f"[{e_id}] Готово")
+                await save_processed_email(e_id)
+                processed_emails.add(e_id)
             else:
                 stats["errors"] += 1
-                logging.error(f"[{e_id}] Ошибка отправки Telegram")
-
-            await save_processed_email(e_id)
-            processed_emails.add(e_id)
 
         except Exception as e:
             stats["errors"] += 1
-            logging.error(f"[{e_id}] Ошибка обработки: {e}")
+            logging.error(f"[WORKER] {e}")
+
+        finally:
+            mail_queue.task_done()
 
 
-# ------------------------
-# 🚀 MAIN LOOP
-# ------------------------
+async def stats_logger(mail_queue):
+    while True:
+        await asyncio.sleep(60)
+        logging.info(f"[Сводка] {stats} очередь={mail_queue.size()}")
+
 
 async def main():
-    logging.info("Запуск скрипта...")
+    logging.info("Запуск...")
 
     config = load_config()
 
-    IMAP_SERVER = config["IMAP_SERVER"]
-    EMAIL_USERNAME = config["EMAIL_USERNAME"]
-    EMAIL_PASSWORD = config["EMAIL_PASSWORD"]
-    TELEGRAM_BOT_TOKEN = config["TELEGRAM_BOT_TOKEN"]
-    TELEGRAM_CHAT_ID = config["TELEGRAM_CHAT_ID"]
-    PROMPT_TEXT = config["PROMPT_TEXT"]
-    GPT_MODEL = config["GPT_MODEL"]
+    poll_interval = int(config["EMAIL_POLL_INTERVAL"])
 
-    logging.info(f"Используется модель: {GPT_MODEL}")
+    email_handler = EmailHandler(
+        config["IMAP_SERVER"],
+        config["EMAIL_USERNAME"],
+        config["EMAIL_PASSWORD"]
+    )
 
-    # создаём ОДИН раз
-    email_handler = EmailHandler(IMAP_SERVER, EMAIL_USERNAME, EMAIL_PASSWORD)
-    telegram_handler = TelegramHandler(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-    analyzer = GPT4Analyzer(GPT_MODEL)
+    telegram_handler = TelegramHandler(
+        config["TELEGRAM_BOT_TOKEN"],
+        config["TELEGRAM_CHAT_ID"]
+    )
 
-    loop_count = 0
+    analyzer = GPT4Analyzer(config["GPT_MODEL"])
 
-    while True:
-        try:
-            await fetch_unread_emails(
-                email_handler,
-                telegram_handler,
-                analyzer,
-                PROMPT_TEXT
-            )
+    mail_queue = MailQueue(maxsize=400)
 
-            loop_count += 1
+    processed_emails = await load_processed_emails()
 
-            # статистика раз в 10 циклов (~5 минут)
-            if loop_count % 10 == 0:
-                logging.info(
-                    f"processed={stats['processed']} | "
-                    f"fallback={stats['fallback']} | errors={stats['errors']}"
-                )
+    workers = [
+        asyncio.create_task(
+            worker(mail_queue, telegram_handler, analyzer, config["PROMPT_TEXT"], processed_emails)
+        )
+        for _ in range(3)
+    ]
 
-            await asyncio.sleep(10)
-
-        except Exception as e:
-            stats["errors"] += 1
-            logging.error(f"Критическая ошибка: {e}")
-            await asyncio.sleep(10)
-
-
-# ------------------------
-# ▶️ ENTRYPOINT
-# ------------------------
+    await asyncio.gather(
+        producer(email_handler, mail_queue, poll_interval),
+        stats_logger(mail_queue),
+        *workers
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,6 +1,8 @@
 import logging
 import asyncio
 import re
+import time
+import json
 
 from config import GPT4_AVAILABLE
 
@@ -9,11 +11,14 @@ class GPT4Analyzer:
     def __init__(self, model_name="gpt-4o-mini"):
         self.model_name = model_name
 
+        # circuit breaker
+        self.fail_count = 0
+        self.fail_threshold = 5
+        self.cooldown_until = 0
+
         if GPT4_AVAILABLE:
             from g4f.client import Client
-            self.client = Client(
-                providers=["DeepInfra"]
-            )
+            self.client = Client(providers=["DeepInfra"])
         else:
             self.client = None
 
@@ -55,9 +60,6 @@ class GPT4Analyzer:
         if "hello" in t or "click" in t:
             return True
 
-        if "фишинг" in t and ("attack" in t or "server" in t):
-            return True
-
         return False
 
     # ------------------------
@@ -70,26 +72,21 @@ class GPT4Analyzer:
         return cyr > lat
 
     # ------------------------
-    # 🧹 ЧИСТКА ОТВЕТА
+    # 📦 JSON
     # ------------------------
 
-    import json
-
     def parse_json(self, text: str):
-        import json
-        import re
-
         try:
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if not match:
                 return None
-
-            raw = match.group(0)
-
-            return json.loads(raw)
-
+            return json.loads(match.group(0))
         except Exception:
             return None
+
+    # ------------------------
+    # 🧹 STREAM CLEAN
+    # ------------------------
 
     def clean_response(self, text: str) -> str:
         if text.strip().startswith("data: {"):
@@ -101,75 +98,122 @@ class GPT4Analyzer:
                 )
             except:
                 pass
-
         return text
 
     # ------------------------
     # 🚨 FALLBACK
     # ------------------------
 
-    def fallback(self, text):
-        import re
-
+    def fallback(self, text: str) -> str:
         text_lower = text.lower()
 
-        # ------------------------
-        # 🌐 IP
-        # ------------------------
+        ips = re.findall(r'\d+\.\d+\.\d+\.\d+', text)
+        ip_list = list(set(ips))[:3]
 
-        ip_match = re.search(r'\d+\.\d+\.\d+\.\d+', text)
-        ip = ip_match.group(0) if ip_match else "не определён"
-        ip_html = f"<code>{ip}</code>"
+        ip_html = ", ".join(f"<code>{ip}</code>" for ip in ip_list) if ip_list else "не определён"
 
         # ------------------------
-        # 🔍 КЛАССИФИКАЦИЯ
+        # КЛАССИФИКАЦИЯ
         # ------------------------
 
         if any(x in text_lower for x in ["ddos", "attack", "flood"]):
             cls = "DDoS / атака"
             priority = "🚨"
-        elif any(x in text_lower for x in ["scan", "crawler", "scraping"]):
-            cls = "Сканирование / сбор данных"
+
+            memo = [
+                "Проверь исходящий трафик",
+                "Ограничь трафик на firewall",
+                "Проверь активные процессы"
+            ]
+
+            commands = [
+                "iftop -i eth0",
+                "ss -antp | grep ESTAB",
+                "top -o %CPU",
+                "iptables -L -n --line-numbers"
+            ]
+
+        elif any(x in text_lower for x in ["brute", "login", "ssh"]):
+            cls = "Брутфорс / подбор паролей"
             priority = "⚠️"
-        elif any(x in text_lower for x in ["brute", "login attempt"]):
-            cls = "Брутфорс"
+
+            memo = [
+                "Проверь попытки авторизации",
+                "Ограничь доступ по IP",
+                "Включи fail2ban"
+            ]
+
+            commands = [
+                "grep 'Failed password' /var/log/auth.log | tail -n 20",
+                "last -a | head",
+                "fail2ban-client status",
+                "ss -antp | grep :22"
+            ]
+
+        elif any(x in text_lower for x in ["scan", "crawler", "nmap"]):
+            cls = "Сканирование"
             priority = "⚠️"
+
+            memo = [
+                "Обычно не критично",
+                "Проверь открытые порты",
+                "Можно включить rate-limit"
+            ]
+
+            commands = [
+                "ss -tulnp",
+                "netstat -tulnp",
+                "iptables -L -n",
+                "conntrack -L | head"
+            ]
+
         else:
-            cls = "Abuse report"
+            cls = "Abuse / подозрительная активность"
             priority = "ℹ️"
 
+            memo = [
+                "Проверь систему",
+                "Проверь сетевые соединения",
+                "Проверь последние изменения"
+            ]
+
+            commands = [
+                "ss -antp",
+                "ps aux --sort=-%cpu | head",
+                "last -a"
+            ]
+
         # ------------------------
-        # 📖 ОПИСАНИЕ
+        # ОПИСАНИЕ
         # ------------------------
 
-        desc = (
-            f"Зафиксирована подозрительная активность с IP {ip_html}. "
-            f"Источник не был обработан LLM, выполнен базовый анализ."
-        )
+        desc = f"Обнаружена активность с IP {ip_html}. Выполнен базовый анализ."
 
         # ------------------------
-        # 🛠 РЕКОМЕНДАЦИИ
+        # ДЕЙСТВИЯ
         # ------------------------
 
         actions = [
-            f"Проверить устройство с IP {ip_html} на компрометацию",
-            "Проанализировать сетевые логи и активные соединения",
-            "Ограничить или заблокировать подозрительный исходящий трафик",
-            "Проверить открытые порты и доступы (SSH, RDP, Web)",
-            "Обновить ПО и сменить пароли на всех сервисах",
+            f"Проверить устройство с IP {ip_html}",
+            "Проанализировать сетевые логи",
+            "Ограничить подозрительный трафик"
         ]
 
         actions_html = "\n".join(f"• {a}" for a in actions)
+        memo_html = "\n".join(f"• {m}" for m in memo)
+        commands_html = "\n".join(f"<code>{c}</code>" for c in commands)
 
-        # ------------------------
-        # 🎨 HTML ВЫВОД
-        # ------------------------
+        commands_block = ""
+        if commands:
+            commands_block = f"\n\n<b>💻 Команды</b>\n{commands_html}"
 
         return (
             f"<b>{priority} СЕТЕВОЙ ИНЦИДЕНТ (fallback)</b>\n\n"
             f"<b>🔍 Классификация</b>\n{cls}\n\n"
             f"<b>📖 Описание</b>\n{desc}\n\n"
-            f"<b>🛠 Действия</b>\n{actions_html}"
+            f"<b>🛠 Действия</b>\n{actions_html}\n\n"
+            f"<b>📌 Памятка</b>\n{memo_html}"
+            f"{commands_block}"
         )
 
     # ------------------------
@@ -182,9 +226,10 @@ class GPT4Analyzer:
         if not GPT4_AVAILABLE or not self.client:
             return self.fallback(text)
 
-        max_attempts = 3
+        if time.time() < self.cooldown_until:
+            return self.fallback(text)
 
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(1, 4):
             try:
                 response = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -199,97 +244,72 @@ class GPT4Analyzer:
                 )
 
                 result = response.choices[0].message.content
+                result = self.clean_response(result)
                 result = self.normalize_llm_output(result)
 
-                # ------------------------
-                # 🔥 2. fallback на текст
-                # ------------------------
                 if not self.is_bad(result):
                     formatted = self.format_output(result)
                     if formatted:
+                        self.fail_count = 0
                         return formatted
 
             except Exception as e:
-                logging.warning(f"GPT attempt {attempt}: {e}")
+                logging.warning(f"[LLM] attempt {attempt}: {e}")
 
-            await asyncio.sleep(1)
+                self.fail_count += 1
 
-        # ------------------------
-        # 🚨 полный fallback
-        # ------------------------
+                if self.fail_count >= self.fail_threshold:
+                    self.cooldown_until = time.time() + 60
+                    break
+
+            await asyncio.sleep(2 ** attempt)
+
         return self.fallback(text)
 
+    # ------------------------
+    # 🧹 CLEAN
+    # ------------------------
 
     def normalize_llm_output(self, text: str) -> str:
-        import re
-
         if not text:
             return ""
 
-        # ❌ убираем markdown/звёздочки
         text = text.replace("*", "")
-
-        # ❌ убираем лишние блоки
-        text = re.sub(r'запрещено:.*', '', text, flags=re.IGNORECASE | re.DOTALL)
-
-        # ❌ убираем рекламу
-        text = re.sub(r'need proxies.*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'need proxies.*', '', text, flags=re.I)
 
         return text.strip()
 
-
     # ------------------------
-    # 🎨 ФОРМАТИРОВАНИЕ ВЫВОДА
+    # 🎨 FORMAT
     # ------------------------
 
     def escape_html(self, text: str) -> str:
-        if not text:
-            return ""
-
-        return (
-            text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-        )
-
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     def format_output(self, text: str) -> str:
-        import re   
-
         if not text:
             return None
 
         # ------------------------
-        # 🧹 ЧИСТКА МУСОРА
+        # CLEAN
         # ------------------------
 
-        lines = text.splitlines()
-        cleaned = []
+        text = re.sub(r'https?://\S+', '', text)
+        text = text.replace("*", "").replace("```", "").replace("---", "")
 
-        for line in lines:
-            l = line.lower()
-
-            if any(x in l for x in ["proxy", "op.wtf", "cheaper than"]):
-                continue
-
-            cleaned.append(line.strip())
-
-        text = "\n".join(cleaned)
-        text = text.replace("*", "")
-        text = text.replace("---", "")
-        text = text.replace("```", "")
-        text = re.sub(r'</?(?!code|b)[^>]+>', '', text)
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
 
         # ------------------------
-        # 📦 ПАРСИМ БЛОКИ
+        # PARSE
         # ------------------------
 
         cls = desc = ""
         rec = []
+        memo = []
 
         current = None
 
-        for line in cleaned:
+        for line in lines:
             l = line.lower()
 
             if "классификац" in l:
@@ -301,6 +321,9 @@ class GPT4Analyzer:
             elif "рекомендац" in l or "действ" in l:
                 current = "rec"
                 continue
+            elif "памятка" in l:
+                current = "memo"
+                continue
 
             if current == "cls":
                 cls += " " + line
@@ -308,60 +331,134 @@ class GPT4Analyzer:
                 desc += " " + line
             elif current == "rec":
                 rec.append(line)
+            elif current == "memo":
+                memo.append(line)
 
-        # fallback
-        if not cls:
-            cls = "Abuse / подозрительная активность"
+        if not cls.strip():
+            cls = "Abuse активность"
 
-        if not desc:
+        if not desc.strip():
             desc = "Обнаружена подозрительная активность"
 
         # ------------------------
-        # 🎯 IP В <code>
+        # ENTITY HIGHLIGHT
         # ------------------------
 
-        def highlight_ip(x):
-            return re.sub(r'(\d+\.\d+\.\d+\.\d+)', r'<code>\1</code>', x)
+        def highlight_entities(x):
+            x = re.sub(r'(\d+\.\d+\.\d+\.\d+)', r'<code>\1</code>', x)
+            x = re.sub(r'([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', r'<code>\1</code>', x)
+            return x
 
-        cls = self.escape_html(cls)
-        desc = self.escape_html(desc)
-        rec = [self.escape_html(r) for r in rec]
+        cls = highlight_entities(self.escape_html(cls))
+        desc = highlight_entities(self.escape_html(desc))
 
-        # потом уже IP
-        cls = highlight_ip(cls)
-        desc = highlight_ip(desc)
-        rec = [highlight_ip(r) for r in rec]
+        rec = [highlight_entities(self.escape_html(r)) for r in rec]
+        memo = [highlight_entities(self.escape_html(m)) for m in memo]
 
         # ------------------------
-        # 🧠 ЧИСТИМ СПИСОК
+        # CLEAN ACTIONS
         # ------------------------
 
-        fixed = []
+        cleaned_rec = []
+
         for r in rec:
-            r = r.lstrip("-• ").strip()
-            if r:
-                fixed.append(r)
+            r = re.sub(r'^[-•.\s]+', '', r).strip()
 
-        if not fixed:
-            fixed = ["Проверить сервер", "Проанализировать логи"]
+            if not r:
+                continue
 
-        rec_html = "\n".join(f"• {r}" for r in fixed)
+            if any(x in r.lower() for x in ["proxy", "http", "www"]):
+                continue
+
+            cleaned_rec.append(r)
+
+        if not cleaned_rec:
+            cleaned_rec = [
+                "Проверить сервер",
+                "Проанализировать логи",
+                "Ограничить трафик"
+            ]
+
+        rec_html = "\n".join(f"• {r}" for r in cleaned_rec)
 
         # ------------------------
-        # 🚨 ПРИОРИТЕТ
+        # MEMO
         # ------------------------
 
-        priority = "⚠️"
-        if "ddos" in text.lower():
+        cleaned_memo = []
+
+        for m in memo:
+            m = re.sub(r'^[-•.\s]+', '', m).strip()
+            if m:
+                cleaned_memo.append(m)
+
+        if not cleaned_memo:
+            cleaned_memo = [
+                "Проверить систему",
+                "Проверить сетевые соединения",
+                "Проверить процессы"
+            ]
+
+        memo_html = "\n".join(f"• {m}" for m in cleaned_memo)
+
+        # ------------------------
+        # PRIORITY
+        # ------------------------
+
+        text_lower = text.lower()
+
+        if any(x in text_lower for x in ["ddos", "botnet"]):
             priority = "🚨"
+        elif any(x in text_lower for x in ["brute", "scan"]):
+            priority = "⚠️"
+        else:
+            priority = "ℹ️"
 
         # ------------------------
-        # 🎨 ВЫВОД (HTML)
+        # COMMANDS
+        # ------------------------
+
+        commands = []
+
+        if "ddos" in text_lower:
+            commands = [
+                "iftop -i eth0",
+                "ss -antp | grep ESTAB",
+                "top -o %CPU",
+                "iptables -L -n"
+            ]
+
+        elif "brute" in text_lower:
+            commands = [
+                "grep 'Failed password' /var/log/auth.log | tail",
+                "last -a",
+                "fail2ban-client status",
+                "ss -antp | grep :22"
+            ]
+
+        elif "scan" in text_lower:
+            commands = [
+                "ss -tulnp",
+                "netstat -tulnp",
+                "iptables -L -n",
+                "conntrack -L | head"
+            ]
+
+        commands_html = "\n".join(f"<code>{c}</code>" for c in commands)
+
+        commands_block = ""
+        if commands:
+            commands_block = f"\n\n<b>💻 Команды (пример)</b>\n{commands_html}"
+
+        # ------------------------
+        # OUTPUT
         # ------------------------
 
         return (
-    f"<b>{priority} СЕТЕВОЙ ИНЦИДЕНТ</b>\n\n"
-    f"<b>🔍 Классификация</b>\n{cls.strip()}\n\n"
-    f"<b>📖 Описание</b>\n{desc.strip()}\n\n"
-    f"<b>🛠 Действия</b>\n{rec_html}"
-)
+            f"<b>{priority} СЕТЕВОЙ ИНЦИДЕНТ</b>\n\n"
+            f"<b>🔍 Классификация</b>\n{cls.strip()}\n\n"
+            f"<b>📖 Описание</b>\n{desc.strip()}\n\n"
+            f"<b>🛠 Действия</b>\n{rec_html}\n\n"
+            f"<b>📌 Памятка</b>\n{memo_html}"
+            f"{commands_block}"
+        )

@@ -61,6 +61,7 @@ def load_config():
         "IMAP_SERVER": os.getenv("IMAP_SERVER"),
         "EMAIL_USERNAME": os.getenv("EMAIL_USERNAME"),
         "EMAIL_PASSWORD": os.getenv("EMAIL_PASSWORD"),
+        "EMAIL_POLL_INTERVAL": os.getenv("EMAIL_POLL_INTERVAL"),
         "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN"),
         "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID"),
         "PROMPT_TEXT": prompt_text,
@@ -77,6 +78,7 @@ def load_config():
         "IMAP_SERVER",
         "EMAIL_USERNAME",
         "EMAIL_PASSWORD",
+        "EMAIL_POLL_INTERVAL",
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_CHAT_ID"
     ]
